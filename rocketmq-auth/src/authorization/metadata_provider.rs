@@ -50,7 +50,16 @@ use crate::AuthServiceResult;
 /// # Thread Safety
 ///
 /// Implementations must be `Send + Sync` to support concurrent access from multiple
-/// RocketMQ components (broker, namesrv, proxy).
+/// RocketMQ components (broker, namesrv, proxy). The futures returned by
+/// [`create_acl`](Self::create_acl), [`delete_acl`](Self::delete_acl), [`update_acl`](Self::update_acl),
+/// [`get_acl`](Self::get_acl) and [`list_acl`](Self::list_acl) are `Send`, so callers generic over
+/// this trait can await any ACL operation inside a future required to be `Send`.
+///
+/// Third-party providers whose create, delete, update or list operation returns a non-`Send`
+/// future must hold only `Send` state across `.await`: copy data out of an `Rc` or a
+/// synchronous lock guard into an owned `Send` value and end the original scope before
+/// awaiting, or make a boxed helper future `Send` and expose the `+ Send` bound in its
+/// return type. `get_acl` already guarantees a `Send` future.
 ///
 /// # Examples
 ///
@@ -70,8 +79,8 @@ use crate::AuthServiceResult;
 /// # Ok(())
 /// # }
 /// ```
-#[allow(async_fn_in_trait)]
-pub trait AuthorizationMetadataProvider: Send + Sync {
+#[trait_variant::make(Send)]
+pub trait AuthorizationMetadataProvider: Sync {
     /// Synchronously initialize the metadata provider with configuration.
     ///
     /// The local implementation applies the ACL cache settings and loads `acls.json` when
@@ -195,10 +204,7 @@ pub trait AuthorizationMetadataProvider: Send + Sync {
     ///     println!("ACL found: {:?}", acl);
     /// }
     /// ```
-    fn get_acl<S: Subject + Send + Sync>(
-        &self,
-        subject: &S,
-    ) -> impl std::future::Future<Output = AuthServiceResult<Option<Acl>>> + Send;
+    async fn get_acl<S: Subject + Send + Sync>(&self, subject: &S) -> AuthServiceResult<Option<Acl>>;
 
     /// List ACLs with optional filtering.
     ///

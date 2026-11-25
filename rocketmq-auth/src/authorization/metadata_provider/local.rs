@@ -766,7 +766,6 @@ impl Default for LocalAuthorizationMetadataProvider {
     }
 }
 
-#[allow(async_fn_in_trait)]
 impl AuthorizationMetadataProvider for LocalAuthorizationMetadataProvider {
     fn initialize(
         &mut self,
@@ -933,20 +932,12 @@ impl AuthorizationMetadataProvider for LocalAuthorizationMetadataProvider {
         }
     }
 
-    fn get_acl<S: Subject + Send + Sync>(
-        &self,
-        subject: &S,
-    ) -> impl std::future::Future<Output = AuthServiceResult<Option<Acl>>> + Send {
-        let initialized = self.ensure_initialized();
+    async fn get_acl<S: Subject + Send + Sync>(&self, subject: &S) -> AuthServiceResult<Option<Acl>> {
+        self.ensure_initialized()?;
+
         let subject_key = subject.subject_key().to_string();
-        let provider = self;
-
-        async move {
-            initialized?;
-
-            debug!("Getting ACL for subject: {}", subject_key);
-            provider.get_cached(&subject_key).await
-        }
+        debug!("Getting ACL for subject: {}", subject_key);
+        self.get_cached(&subject_key).await
     }
 
     async fn list_acl(

@@ -74,6 +74,9 @@ thiserror = { workspace = true }
 # Async runtime
 tokio = { workspace = true }
 
+# Send-trait async method variants
+trait-variant = { workspace = true }
+
 # Caching
 moka = { version = "0.12", features = ["sync"] }
 

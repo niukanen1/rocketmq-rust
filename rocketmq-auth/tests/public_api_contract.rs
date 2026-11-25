@@ -12,12 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use rocketmq_auth::Acl;
 use rocketmq_auth::AuthConfig;
 use rocketmq_auth::AuthenticationStrategy;
+use rocketmq_auth::AuthorizationMetadataProvider;
 use rocketmq_auth::AuthorizationRequest;
 use rocketmq_auth::AuthorizationStrategy;
+use rocketmq_auth::NoopMetadataProvider;
+use rocketmq_auth::Policy;
 use rocketmq_auth::PolicyDecision;
 use rocketmq_auth::PolicyResource;
+use rocketmq_auth::Resource;
+use rocketmq_auth::SubjectType;
+use rocketmq_auth::User;
+use rocketmq_security_api::Action;
 use rocketmq_security_api::Resource as SecurityResource;
 
 #[test]
@@ -54,4 +62,31 @@ fn auth_consumers_use_only_intentional_root_exports() {
     accepts_security_resource(None);
     let _ = PolicyDecision::Allow;
     let _ = AuthorizationRequest::default();
+}
+
+#[test]
+fn authorization_metadata_provider_futures_are_send() {
+    fn require_send<F: Send>(_: F) {}
+
+    fn check<P: AuthorizationMetadataProvider>(provider: &P, acl: Acl, user: &User) {
+        require_send(provider.create_acl(acl.clone()));
+        require_send(provider.delete_acl(user));
+        require_send(provider.update_acl(acl));
+        require_send(provider.get_acl(user));
+        require_send(provider.list_acl(None, None));
+    }
+
+    let provider = NoopMetadataProvider::new();
+    let acl = Acl::of(
+        "contract",
+        SubjectType::User,
+        Policy::of(
+            vec![Resource::of_topic("topic-a")],
+            vec![Action::Pub],
+            None,
+            rocketmq_auth::PolicyDecision::Allow,
+        ),
+    );
+    let user = User::of("contract");
+    check::<NoopMetadataProvider>(&provider, acl, &user);
 }
